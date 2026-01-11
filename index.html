@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI In Sensor Design</title>
+    <link rel="icon" type="image/svg+xml" href="assets/logo_qorex.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --bg-depth: #050505;
+            --bg-panel: #0a0a0a;
+            --accent-blue: #00d4ff;
+            --text-dim: #666666;
+            --text-main: #e0e0e0;
+            --ui-border: rgba(0, 212, 255, 0.1);
+            --sidebar-width: 280px;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            background-color: var(--bg-depth);
+            color: var(--text-main);
+            font-family: 'JetBrains Mono', monospace;
+            margin: 0; height: 100vh; display: flex; overflow: hidden;
+        }
+
+        /* --- SIDEBAR --- */
+        #sidebar {
+            width: var(--sidebar-width);
+            height: 100%;
+            background-color: var(--bg-panel);
+            border-right: 1px solid var(--ui-border);
+            position: fixed; left: 0;
+            transition: transform 0.3s ease;
+            z-index: 100; display: flex; flex-direction: column;
+        }
+        #sidebar.closed { transform: translateX(-100%); }
+
+        .sidebar-header {
+            height: 65px;
+            display: flex; align-items: center;
+            padding: 0 25px; font-size: 12px; color: var(--accent-blue);
+            letter-spacing: 3px; border-bottom: 1px solid var(--ui-border);
+            text-transform: uppercase;
+        }
+
+        .menu-scroll { flex-grow: 1; overflow-y: auto; padding: 15px 0; }
+
+        .menu-item {
+            padding: 10px 25px; color: var(--text-main); text-decoration: none;
+            font-size: 11px; display: block; cursor: pointer; transition: 0.2s;
+            border-left: 3px solid transparent; text-transform: uppercase;
+        }
+        .menu-item.chapter { font-weight: 700; color: var(--accent-blue); margin-top: 15px; }
+        .menu-item.sub { padding-left: 45px; font-size: 10px; color: var(--text-dim); }
+        .menu-item:hover, .menu-item.active {
+            background: rgba(0, 212, 255, 0.05);
+            color: var(--accent-blue);
+            border-left-color: var(--accent-blue);
+        }
+
+        /* --- MAIN AREA --- */
+        .main-wrapper {
+            flex-grow: 1; margin-left: var(--sidebar-width);
+            transition: margin-left 0.3s ease; display: flex; flex-direction: column;
+        }
+        .main-wrapper.full { margin-left: 0; }
+
+        .hud-header {
+            height: 65px; padding: 0 30px; display: flex; justify-content: space-between;
+            align-items: center; border-bottom: 1px solid var(--ui-border);
+            background: var(--bg-depth);
+        }
+
+        .header-controls { display: flex; align-items: center; gap: 20px; }
+
+        .lang-toggle {
+            font-size: 10px; color: var(--text-dim); cursor: pointer;
+            border: 1px solid var(--ui-border); padding: 4px 8px; transition: 0.2s;
+        }
+        .lang-toggle.active { color: var(--accent-blue); border-color: var(--accent-blue); }
+
+        #reader-display {
+            flex-grow: 1; overflow-y: auto; padding: 40px 20px;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .content-body { width: 100%; max-width: 800px; }
+
+        h1, h2, h3 { color: var(--accent-blue); text-transform: uppercase; }
+        p { text-transform: none; line-height: 1.8; font-size: 16px; margin-bottom: 20px; color: #ccc; }
+        
+        .nav-controls {
+            display: flex; justify-content: space-between;
+            margin-top: 60px; padding-top: 30px; border-top: 1px solid var(--ui-border);
+            margin-bottom: 50px;
+        }
+        .nav-btn {
+            color: var(--accent-blue); text-decoration: none; font-size: 11px;
+            padding: 10px 20px; border: 1px solid var(--ui-border);
+            cursor: pointer; transition: 0.3s; text-transform: uppercase;
+        }
+        .nav-btn:hover { background: var(--accent-blue); color: var(--bg-depth); }
+        .nav-btn.hidden { visibility: hidden; }
+
+        .menu-btn {
+            background: none; border: 1px solid var(--accent-blue); color: var(--accent-blue);
+            cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <div class="sidebar-header">INDEX</div>
+        <div class="menu-scroll" id="menu-list">
+            </div>
+    </div>
+
+    <div class="main-wrapper" id="mainWrapper">
+        <nav class="hud-header">
+            <div class="header-controls">
+                <button class="menu-btn" onclick="toggleTOC()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <div id="statusLabel" style="font-size: 10px; color: var(--text-dim); letter-spacing: 2px;">SYNCING...</div>
+            </div>
+
+            <div class="header-controls">
+                <span class="lang-toggle" id="btn-en" onclick="setLanguage('en')">EN</span>
+                <span class="lang-toggle" id="btn-es" onclick="setLanguage('es')">ES</span>
+            </div>
+        </nav>
+
+        <main id="reader-display">
+            <div class="content-body">
+                <div id="content-injector"></div>
+                <div class="nav-controls">
+                    <div id="prevBtn" class="nav-btn" onclick="navigateBook(-1)">← PREV</div>
+                    <div id="nextBtn" class="nav-btn" onclick="navigateBook(1)">NEXT →</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const bookStructure = [
+            { id: '1.0', en: '1. Presentation', es: '1. Presentación', type: 'chapter' },
+            { id: '1.1', en: '1.1. Introduction', es: '1.1. Introducción', type: 'sub' },
+            { id: '1.2', en: '1.2. Objectives', es: '1.1. Objetivos', type: 'sub' },
+
+            { id: '2.0', en: '2. Hardware Layer', es: '2. Capa de Hardware', type: 'chapter' },
+            { id: '2.1', en: '2.1. Sensors', es: '2.2. Sensores', type: 'sub' },
+            { id: '2.2', en: '2.2. Signal Processing', es: '2.2. Procesamiento de Señales', type: 'sub' },
+
+            { id: '3.0', en: '3. Artificial Intelligence', es: '3. Inteligencia Artificial', type: 'chapter' }
+        ];
+
+        let currentLang = 'es';
+        let currentFile = '1.0';
+
+        function renderMenu() {
+            const menuList = document.getElementById('menu-list');
+            menuList.innerHTML = bookStructure.map(ch => `
+                <a class="menu-item ${ch.type} ${ch.id === currentFile ? 'active' : ''}" 
+                   data-id="${ch.id}" 
+                   onclick="loadContent('${ch.id}')">
+                   ${ch[currentLang]}
+                </a>
+            `).join('');
+        }
+
+        async function loadContent(file) {
+            currentFile = file;
+            const display = document.getElementById('content-injector');
+            const status = document.getElementById('statusLabel');
+            
+            window.location.hash = file;
+
+            display.innerHTML = `<p style="color:var(--accent-blue)">> LOADING_${currentLang.toUpperCase()}: ${file.toUpperCase()}...</p>`;
+            
+            try {
+                renderMenu();
+                updateNavButtons();
+
+                const response = await fetch(`content/${currentLang}/${file}.md`);
+                if (!response.ok) throw new Error();
+                const text = await response.text();
+                
+                const htmlContent = marked.parse(text);
+                display.innerHTML = htmlContent;
+
+                const firstHeading = display.querySelector('h1');
+                
+                if (firstHeading) {
+                    const pageTitle = firstHeading.innerText;
+                    document.title = pageTitle;
+                    status.innerText = `UNIT: ${pageTitle.toUpperCase()}`; 
+                } else {
+                    // Fallback si no hay título H1
+                    document.title = file;
+                    status.innerText = `UNIT: ${file.toUpperCase()}`;
+                }
+
+                document.getElementById('reader-display').scrollTop = 0;
+            } catch (e) {
+                renderMenu();
+                display.innerHTML = `<h1 style="color:red">ERROR 404</h1><p>CONTENT NOT FOUND.</p>`;
+            }
+
+        }
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            
+            localStorage.setItem('preferred_lang', lang);
+
+            document.querySelectorAll('.lang-toggle').forEach(el => el.classList.remove('active'));
+            const btn = document.getElementById(`btn-${lang}`);
+            if (btn) btn.classList.add('active');
+            
+            renderMenu();
+            updateNavButtons();
+            loadContent(currentFile);
+        }
+
+        function updateNavButtons() {
+            const idx = bookStructure.findIndex(ch => ch.id === currentFile);
+            document.getElementById('prevBtn').classList.toggle('hidden', idx === 0);
+            document.getElementById('nextBtn').classList.toggle('hidden', idx === bookStructure.length - 1);
+            
+            document.getElementById('prevBtn').innerText = currentLang === 'es' ? '← ANTERIOR' : '← PREV';
+            document.getElementById('nextBtn').innerText = currentLang === 'es' ? 'SIGUIENTE →' : 'NEXT →';
+        }
+
+        function navigateBook(dir) {
+            const idx = bookStructure.findIndex(ch => ch.id === currentFile);
+            const newIdx = idx + dir;
+            if (newIdx >= 0 && newIdx < bookStructure.length) {
+                loadContent(bookStructure[newIdx].id);
+            }
+        }
+
+        function toggleTOC() {
+            document.getElementById('sidebar').classList.toggle('closed');
+            document.getElementById('mainWrapper').classList.toggle('full');
+        }
+
+        window.onhashchange = () => {
+            const hash = window.location.hash.replace('#', '');
+            if (hash && hash !== currentFile) {
+                loadContent(hash);
+            }
+        };
+
+        window.onload = () => {
+            const hash = window.location.hash.replace('#', '');
+            const exists = bookStructure.some(ch => ch.id === hash);
+            
+            if (exists) {
+                currentFile = hash;
+            }
+
+            const savedLang = localStorage.getItem('preferred_lang');
+            const browserLang = navigator.language.startsWith('es') ? 'es' : 'en';
+            
+            const finalLang = savedLang || browserLang;
+            
+            setLanguage(finalLang);
+        };
+    </script>
+</body>
+</html>
